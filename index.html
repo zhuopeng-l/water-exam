@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>水安题库 · 多用户隔离版</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <title>水安题库 · 多用户隔离版（修复版）</title>
+    <!-- 使用可靠的 Chart.js CDN，并添加 crossorigin 属性 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
         :root{--bg:#f7f8fa;--card:#fff;--text:#1e2a3e;--text2:#5b6e8c;--border:#e2e8f0;--primary:#2c5f8a;--primary-light:#3b82f6;--success:#10b981;--danger:#ef4444;--warning:#f59e0b;--header:#0f2b3d;--sidebar-bg:#f1f5f9}
@@ -167,8 +168,8 @@
     const AUTH_KEY = 'water_auth_users';
     const CURRENT_USER_KEY = 'water_current_user';
     function getCurrentUser(){ return localStorage.getItem(CURRENT_USER_KEY); }
-    function setCurrentUser(u){ localStorage.setItem(CURRENT_USER_KEY, u); document.getElementById('currentUserDisplay').textContent = u ? `👤 ${u}` : ''; }
-    function clearCurrentUser(){ localStorage.removeItem(CURRENT_USER_KEY); document.getElementById('currentUserDisplay').textContent = ''; }
+    function setCurrentUser(u){ localStorage.setItem(CURRENT_USER_KEY, u); const el = document.getElementById('currentUserDisplay'); if(el) el.textContent = u ? `👤 ${u}` : ''; }
+    function clearCurrentUser(){ localStorage.removeItem(CURRENT_USER_KEY); const el = document.getElementById('currentUserDisplay'); if(el) el.textContent = ''; }
     function getUsers(){ return JSON.parse(localStorage.getItem(AUTH_KEY) || '{}'); }
     function saveUsers(users){ localStorage.setItem(AUTH_KEY, JSON.stringify(users)); }
     function getUserKey(base){ const u = getCurrentUser(); if(!u) throw new Error('No user'); return `${u}_${base}`; }
@@ -314,11 +315,12 @@
             const totalData=[], correctData=[]; let cumTotal=0, cumCorrect=0;
             dates.forEach(d=>{ const s=dailyStats[d]||{total:0,correct:0}; totalData.push(s.total); correctData.push(s.correct); cumTotal+=s.total; cumCorrect+=s.correct; });
             const today=getTodayKey(); const ts=dailyStats[today]||{total:0,correct:0};
-            $('#statsSummary').innerHTML = `<span>📚 今日:${ts.total}</span><span>✅ 正确:${ts.correct}</span><span>📊 正确率:${ts.total?Math.round(ts.correct/ts.total*100):0}%</span><span>🏆 累计:${cumTotal}</span><span>📈 总正确率:${cumTotal?Math.round(cumCorrect/cumTotal*100):0}%</span>`;
+            const summaryEl = document.getElementById('statsSummary');
+            if(summaryEl) summaryEl.innerHTML = `<span>📚 今日:${ts.total}</span><span>✅ 正确:${ts.correct}</span><span>📊 正确率:${ts.total?Math.round(ts.correct/ts.total*100):0}%</span><span>🏆 累计:${cumTotal}</span><span>📈 总正确率:${cumTotal?Math.round(cumCorrect/cumTotal*100):0}%</span>`;
             const ctx1 = document.getElementById('dailyChart')?.getContext('2d');
             if(ctx1){ if(dailyChart) dailyChart.destroy(); dailyChart = new Chart(ctx1, {type:'bar', data:{labels:dates.map(d=>d.slice(5)), datasets:[{label:'答题总数',data:totalData,backgroundColor:'rgba(59,130,246,0.6)'},{label:'正确数',data:correctData,backgroundColor:'rgba(16,185,129,0.7)'}]}, options:{responsive:true, maintainAspectRatio:true}}); }
             const ctx2 = document.getElementById('scoreChart')?.getContext('2d');
-            if(ctx2){ if(scoreChart) scoreChart.destroy(); const last10 = examHistory.slice(-10); const scores = last10.map(h=>h.score); $('#scoreStats').innerHTML = `最近${scores.length}次考试 · 平均分 ${scores.length?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):0}`; scoreChart = new Chart(ctx2, {type:'line', data:{labels:last10.map(h=>h.date.slice(5)), datasets:[{label:'考试成绩',data:scores,borderColor:'#f59e0b',fill:true}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100}}}); }
+            if(ctx2){ if(scoreChart) scoreChart.destroy(); const last10 = examHistory.slice(-10); const scores = last10.map(h=>h.score); const scoreStatsEl = document.getElementById('scoreStats'); if(scoreStatsEl) scoreStatsEl.innerHTML = `最近${scores.length}次考试 · 平均分 ${scores.length?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):0}`; scoreChart = new Chart(ctx2, {type:'line', data:{labels:last10.map(h=>h.date.slice(5)), datasets:[{label:'考试成绩',data:scores,borderColor:'#f59e0b',fill:true}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100}}}); }
         }
 
         let currentMode='normal', currentType='all', currentIndex=0, filteredList=[];
