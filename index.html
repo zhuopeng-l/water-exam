@@ -3,9 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>水安题库 · CloudBase 静态托管版</title>
-    <!-- 腾讯云官方稳定 SDK -->
-    <script src="https://imgcache.qq.com/qcloud/tcbjs/1.10.8/tcb.js"></script>
+    <title>水安题库 · 稳定完整版</title>
+    <!-- CloudBase SDK 多重备用加载 -->
+    <script>
+        (function() {
+            var srcList = [
+                'https://imgcache.qq.com/qcloud/tcbjs/1.10.8/tcb.js',
+                'https://web.sdk.qcloud.com/tcb/latest/tcb.js'
+            ];
+            var index = 0;
+            function loadScript() {
+                if (index >= srcList.length) {
+                    alert('⚠️ 网络异常，SDK加载失败。\n请尝试刷新或更换网络。');
+                    return;
+                }
+                var script = document.createElement('script');
+                script.src = srcList[index];
+                script.onload = function() {
+                    console.log('✅ SDK 加载成功：' + srcList[index]);
+                    if (typeof window.initAppAfterSDK === 'function') {
+                        window.initAppAfterSDK();
+                    }
+                };
+                script.onerror = function() {
+                    console.warn('⏳ 源失败：' + srcList[index]);
+                    index++;
+                    loadScript();
+                };
+                document.head.appendChild(script);
+            }
+            loadScript();
+        })();
+    </script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
@@ -24,7 +53,7 @@
         .header-buttons button{background:rgba(255,255,255,0.2);border:none;color:#fff;padding:8px 12px;border-radius:24px;font-size:13px;cursor:pointer;transition:0.2s;white-space:nowrap;min-height:40px;}
         #importBtn{background:#3b82f6}#resetDefaultBtn{background:#f59e0b}#resetStatsBtn{background:#ef4444}#toggleChartBtn{background:#10b981}#toggleAnswerCardBtn{background:#8b5cf6}#clearWrongBtn{background:#f97316}
         .main-layout{display:flex;flex:1;overflow:hidden;padding:10px;gap:10px;min-height:0;position:relative;}
-        .sidebar-left,.sidebar-right{width:300px;flex-shrink:0;background:var(--sidebar-bg);border-radius:20px;padding:14px;overflow-y:auto;transition:all 0.25s;border:1px solid var(--border);z-index:20;}
+        .sidebar-left,.sidebar-right{width:300px;flex-shrink:0;background:var(--sidebar-bg);border-radius:20px;padding:14px;overflow-y:auto;transition:all 0.25s;border:1px solid var(--border);z-index:20;display:none;}
         .sidebar-left.show,.sidebar-right.show{display:block;}
         .main-content{flex:1;display:flex;flex-direction:column;overflow-y:auto;min-width:0;padding-bottom:calc(20px + var(--safe-bottom));-webkit-overflow-scrolling:touch;}
         .stats-bar{background:var(--card);padding:8px 12px;border-radius:16px;margin-bottom:10px;border:1px solid var(--border);font-size:13px;color:var(--text2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;}
@@ -103,13 +132,13 @@
     <div class="auth-card">
         <div class="auth-tabs"><div id="loginTab" class="auth-tab active">登录</div><div id="registerTab" class="auth-tab">注册</div></div>
         <div id="loginForm" class="auth-form">
-            <input type="email" id="loginEmail" class="auth-input" placeholder="邮箱" autocomplete="email">
+            <input type="text" id="loginUsername" class="auth-input" placeholder="用户名" autocomplete="username">
             <input type="password" id="loginPassword" class="auth-input" placeholder="密码" autocomplete="current-password">
             <button id="loginBtn" class="auth-btn">登 录</button>
             <div id="loginError" class="auth-error"></div>
         </div>
         <div id="registerForm" class="auth-form" style="display:none;">
-            <input type="email" id="regEmail" class="auth-input" placeholder="邮箱" autocomplete="email">
+            <input type="text" id="regUsername" class="auth-input" placeholder="用户名" autocomplete="off">
             <input type="password" id="regPassword" class="auth-input" placeholder="密码" autocomplete="new-password">
             <input type="password" id="regConfirm" class="auth-input" placeholder="确认密码">
             <button id="registerBtn" class="auth-btn">注 册</button>
@@ -184,19 +213,11 @@
 <div id="toast" class="toast"></div>
 
 <script>
-    (function(){
-        "use strict";
+    window.initAppAfterSDK = function() {
         // ************ 请替换为您的 CloudBase 环境 ID ************
-        const ENV_ID = 'water-exam';  // 例如：water-exam-1a2b3c
+        const ENV_ID = 'water-exam-d6gi9exd4361f2615-1258251523'; // 例如 water-exam-d6gi9exd4361f2615-1258251523
         // ***********************************************
 
-        // 检测 SDK 是否加载成功
-        if (typeof tcb === 'undefined') {
-            alert('网络异常，CloudBase SDK 加载失败。请刷新重试或检查网络。');
-            return;
-        }
-
-        // 初始化 CloudBase
         const app = tcb.init({ env: ENV_ID });
         const auth = app.auth({ persistence: 'local' });
         const db = app.database();
@@ -208,6 +229,7 @@
         const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s);
         const showToast = msg => { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => t.style.display = 'none', 2000); };
 
+        // 解析题库
         function parseQuestionsFromText(text) {
             const blocks = text.split(/(?=^\d+\.\s)/m).filter(b => b.trim());
             const qs = []; let id = 1;
@@ -255,12 +277,40 @@
         const authOverlay = $('#authOverlay'), logoutBtn = $('#logoutBtn');
         const cardGrid = $('#cardGrid'), examCardGrid = $('#examCardGrid');
 
+        // ========== HTTP API 注册/登录 ==========
+        const API_BASE = `https://${ENV_ID}.service.tcloudbase.com`;
+
+        async function httpRequest(path, data) {
+            const url = `${API_BASE}${path}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                throw new Error(result.message || '请求失败');
+            }
+            return result;
+        }
+
+        async function signUpAndLogin(username, password) {
+            await httpRequest('/auth/v1/signup', { username, password });
+            const loginRes = await httpRequest('/auth/v1/signin', { username, password });
+            await auth.customAuthProvider().signIn(loginRes.access_token);
+        }
+
+        async function signIn(username, password) {
+            const loginRes = await httpRequest('/auth/v1/signin', { username, password });
+            await auth.customAuthProvider().signIn(loginRes.access_token);
+        }
+
         auth.onLoginStateChanged(async (user) => {
             if (user) {
                 currentUser = user;
                 authOverlay.style.display = 'none';
                 logoutBtn.style.display = 'inline-block';
-                $('#currentUserDisplay').textContent = `👤 ${user.email}`;
+                $('#currentUserDisplay').textContent = `👤 ${user.username || '用户'}`;
                 await loadUserData();
                 initApp();
             } else {
@@ -273,6 +323,22 @@
                 $('#qOptions').innerHTML = '';
             }
         });
+
+        $('#loginBtn').onclick = async () => {
+            const u = $('#loginUsername').value.trim(), p = $('#loginPassword').value;
+            if (!u || !p) { $('#loginError').textContent = '请输入用户名和密码'; return; }
+            try { await signIn(u, p); } catch (e) { $('#loginError').textContent = e.message; }
+        };
+        $('#registerBtn').onclick = async () => {
+            const u = $('#regUsername').value.trim(), p = $('#regPassword').value, c = $('#regConfirm').value;
+            if (!u || !p) { $('#regError').textContent = '请输入用户名和密码'; return; }
+            if (p !== c) { $('#regError').textContent = '两次密码不一致'; return; }
+            if (u.length < 3) { $('#regError').textContent = '用户名至少3个字符'; return; }
+            try { await signUpAndLogin(u, p); } catch (e) { $('#regError').textContent = e.message; }
+        };
+        logoutBtn.onclick = () => auth.signOut();
+        $('#loginTab').onclick = () => { $('#loginTab').classList.add('active'); $('#registerTab').classList.remove('active'); $('#loginForm').style.display = 'flex'; $('#registerForm').style.display = 'none'; };
+        $('#registerTab').onclick = () => { $('#registerTab').classList.add('active'); $('#loginTab').classList.remove('active'); $('#registerForm').style.display = 'flex'; $('#loginForm').style.display = 'none'; };
 
         async function loadUserData() {
             if (!currentUser) return;
@@ -300,19 +366,7 @@
             } catch (e) { showToast('保存失败'); }
         }
 
-        $('#loginBtn').onclick = async () => {
-            const email = $('#loginEmail').value.trim(), pwd = $('#loginPassword').value;
-            try { await auth.signInWithEmailAndPassword(email, pwd); } catch (e) { $('#loginError').textContent = e.message; }
-        };
-        $('#registerBtn').onclick = async () => {
-            const email = $('#regEmail').value.trim(), pwd = $('#regPassword').value, conf = $('#regConfirm').value;
-            if (pwd !== conf) { $('#regError').textContent = '两次密码不一致'; return; }
-            try { await auth.signUpWithEmailAndPassword(email, pwd); } catch (e) { $('#regError').textContent = e.message; }
-        };
-        logoutBtn.onclick = () => auth.signOut();
-        $('#loginTab').onclick = () => { $('#loginTab').classList.add('active'); $('#registerTab').classList.remove('active'); $('#loginForm').style.display = 'flex'; $('#registerForm').style.display = 'none'; };
-        $('#registerTab').onclick = () => { $('#registerTab').classList.add('active'); $('#loginTab').classList.remove('active'); $('#registerForm').style.display = 'flex'; $('#loginForm').style.display = 'none'; };
-
+        // ========== 业务逻辑 ==========
         function renderCharts() {
             if (!leftVisible) return;
             const dates = []; for (let i=6;i>=0;i--) { let d = new Date(); d.setDate(d.getDate()-i); dates.push(d.toISOString().slice(0,10)); }
@@ -526,7 +580,11 @@
             applyTheme(theme);
             setInterval(() => { if(leftVisible) renderCharts(); }, 600000);
         }
-    })();
+    };
+
+    if (typeof tcb !== 'undefined') {
+        window.initAppAfterSDK();
+    }
 </script>
 </body>
 </html>
